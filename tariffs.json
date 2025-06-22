@@ -1,0 +1,26 @@
+[
+  {
+    "name": "FlatRate",
+    "baseFee": 0,
+    "hourlyConfigs": [
+      {"cost": 15}
+    ]
+  },
+  {
+    "name": "NightSaver",
+    "baseFee": 5,
+    "hourlyConfigs": [
+      {"startHour": 0, "endHour": 6, "cost": 5},
+      {"startHour": 6, "endHour": 22, "cost": 20},
+      {"startHour": 22, "endHour": 24, "cost": 10}
+    ]
+  },
+  {
+    "name": "Tiered",
+    "baseFee": 0,
+    "hourlyConfigs": [
+      {"cost": 10},
+      {"billedAfterUsage": 100, "cost": 15}
+    ]
+  }
+]
