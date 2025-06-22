@@ -16,7 +16,7 @@ python -m uvicorn app.main:app --reload
 The API exposes two endpoints:
 
 - `POST /recommend` – upload a CSV file with usage data and get tariff recommendations.
-- `GET /explain` – placeholder for detailed explanations of the last recommendation.
+- `POST /explain` – upload the same usage CSV and receive an AI generated email summarising which tariff is best and why.
 
 The `/recommend` endpoint processes the CSV stream month by month so even large
 files can be handled without loading everything into memory.
@@ -43,3 +43,7 @@ With switching allowed the output contains per-month information:
 ```json
 {"months": {"YYYY-MM": {"plan": "<PLAN>", "cost": <MONTH_COST>}, ...}}
 ```
+
+The response also includes a `metrics` object detailing the cost and usage
+breakdown for every plan and month. The `/explain` endpoint relies on these
+values to generate its summary.

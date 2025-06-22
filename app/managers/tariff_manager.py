@@ -91,4 +91,7 @@ def calculate_from_csv(file_obj, consider_generation: bool, allow_switch: bool) 
         best_plan = min(metrics.items(), key=lambda kv: kv[1]["total_cost"])[0]
         result["plan"] = best_plan
         result["cost"] = metrics[best_plan]["total_cost"]
+
+    # include metrics for further analysis or explanation
+    result["metrics"] = metrics
     return result
