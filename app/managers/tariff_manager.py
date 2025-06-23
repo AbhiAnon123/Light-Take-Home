@@ -4,7 +4,12 @@ from typing import Any, Dict, List
 
 from app.configs.tariffs import HourlyConfig, select_config, TARIFFS
 
-def calculate_from_csv(file_obj, consider_generation: bool, allow_switch: bool) -> Dict[str, Any]:
+def calculate_from_csv(
+    file_obj,
+    consider_generation: bool,
+    allow_switch: bool,
+    use_averages_analysis: bool = False,
+) -> Dict[str, Any]:
     """Process uploaded CSV stream month by month without loading entire file."""
     reader = csv.DictReader(line.decode() if isinstance(line, bytes) else line for line in file_obj)
 
@@ -91,4 +96,62 @@ def calculate_from_csv(file_obj, consider_generation: bool, allow_switch: bool) 
         best_plan = min(metrics.items(), key=lambda kv: kv[1]["total_cost"])[0]
         result["plan"] = best_plan
         result["cost"] = metrics[best_plan]["total_cost"]
+
+    # include metrics for further analysis or explanation
+    result["metrics"] = metrics
+
+    # compute average metrics over the months for yearly analysis
+    month_count = len(months_order) if months_order else 1
+    average: Dict[str, Any] = {}
+    for plan_name, data in metrics.items():
+        total_usage = 0.0
+        total_cost = 0.0
+        breakdown_sum: Dict[str, Dict[str, float]] = {}
+        for month in data["months"].values():
+            total_usage += month["usage"]
+            total_cost += month["cost"]
+            for key, detail in month["breakdown"].items():
+                agg = breakdown_sum.setdefault(key, {"usage": 0.0, "cost": 0.0})
+                agg["usage"] += detail["usage"]
+                agg["cost"] += detail["cost"]
+        for agg in breakdown_sum.values():
+            agg["usage"] /= month_count
+            agg["cost"] /= month_count
+        average[plan_name] = {
+            "average_month_cost": total_cost / month_count,
+            "average_month_usage": total_usage / month_count,
+            "breakdown": breakdown_sum,
+        }
+    result["averageMetrics"] = average
+    
+    # determine the best plan summary
+    if use_averages_analysis:
+        # analysis based on the averaged metrics
+        if allow_switch:
+            best_plan = min(
+                average.items(), key=lambda kv: kv[1]["average_month_cost"]
+            )[0]
+            result["analysis"] = {
+                "plan": best_plan,
+                "average_month_cost": average[best_plan]["average_month_cost"],
+            }
+        else:
+            best_plan = min(
+                average.items(), key=lambda kv: kv[1]["average_month_cost"]
+            )[0]
+            result["analysis"] = {
+                "plan": best_plan,
+                "average_month_cost": average[best_plan]["average_month_cost"],
+            }
+    else:
+        # analysis based on actual totals from the provided CSV
+        if allow_switch:
+            analysis_months = {
+                m: {"plan": result["months"][m]["plan"], "cost": result["months"][m]["cost"]}
+                for m in months_order
+            }
+            result["analysis"] = {"months": analysis_months}
+        else:
+            result["analysis"] = {"plan": result["plan"], "total_cost": result["cost"]}
+
     return result
