@@ -1,8 +1,14 @@
 import csv
+import os
+import json
+from openai import AsyncOpenAI
 from datetime import datetime
-from typing import Any, Dict, List, Tuple, Iterable
+from typing import Any, Dict, List, Tuple, Iterable, Optional
+from app.configs.tariffs import HourlyConfig, select_config, TARIFFS, load_tariffs
+from dotenv import load_dotenv
 
-from app.configs.tariffs import HourlyConfig, select_config, TARIFFS
+load_dotenv()
+open_ai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 def describe_config(cfg: HourlyConfig) -> str:
@@ -230,3 +236,68 @@ def calculate_from_csv(file_obj, consider_generation: bool, allow_switch: bool) 
     """Process uploaded CSV stream month by month without loading entire file."""
     metrics, months_order = calculate_usage_metrics(file_obj, consider_generation)
     return recommend_from_metrics(metrics, months_order, allow_switch)
+
+def get_analysis_projected(file_obj, consider_generation: bool, allow_plan_switching: bool) -> Dict[str, Any]:
+    """Averages the usage metrics over the given data and projects out to make recommendations for the user for the upcoming year/months."""
+    metrics, _ = calculate_usage_metrics(file_obj, consider_generation)
+    avg_metrics = average_metrics(metrics)
+    # order months numerically to keep response predictable
+    if avg_metrics:
+        months_order = sorted(next(iter(avg_metrics.values()))["months"].keys())
+    else:
+        months_order = []
+    return recommend_from_metrics(avg_metrics, months_order, allow_plan_switching)
+
+async def get_analysis_email(file_obj, consider_generation: bool, allow_plan_switching: bool, user_id: Optional[int] = None):
+    """calls `get_analysis_projected` to get projected recommendations, and then crafts a user-friendly email to send out"""
+    analysis = get_analysis_projected(file_obj, consider_generation, allow_plan_switching)
+
+    system_prompt = EXPLAIN_SYSTEM_PROMPT
+    user_message = json.dumps(analysis, indent=2)
+    completion = await open_ai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
+        stream=False
+    )
+    explanation = completion.choices[0].message.content
+
+    email = "Dear Customer,\n\nThank you for being a valued customer with us!"
+    if allow_plan_switching:
+        email += "Here is your tariff plan recommendations for the next year, split by month:\n\n"
+    else:
+        email += "Here is your tariff plan recommendations for the next year:\n\n"
+    email += (
+        f"{explanation}\n\n"
+        "Thank you again!\n"
+        "Sincerely, Light"
+    )
+    return {"email": email, "analysis": analysis}
+    # We simply return the response, but this could integrate with an email provider, publish message to queue or make API call, etc.
+
+EXPLAIN_SYSTEM_PROMPT = f"""
+You are a helpful expert energy consultant.
+Given a customer's energy usage data, we have generated an analysis of which tariff plan or plans will be cheapest for the upcoming year.
+Using the analysis provided as input, explain why those plan choices were recommended. Compare the options, and reference the usage breakdowns that most affected the decision.
+
+<tariff-plan-options>
+## Tariff Plan Options:
+{json.dumps(load_tariffs(), indent=2)}
+</tariff-plan-options>
+
+## Description of the Input Data
+The input will include the most cost-efficient plan option, the cost and usage metrics of each, as well 
+as a detailed breakdown of the cost + usage based on the different components of each given plan.
+An example of a component is 'All hours of the day, applied after 100 kWh', meaning that component of the plan applies across all hours of the day, but only after the first 100 kWh.
+
+A single tariff plan consists of several elements:
+1. A base fee, monthly
+2. A list of configs that apply by hour of the day
+    - Each of these configs has a start hour and end hour, or by default applies to all hours of the day
+    - Each of the configs also optionally has a billedAfterUsage field, which means that the rate of that config applies after the monthly usage has hit a certain limit
+    - The billedAfterUsage value is in kWh
+    - The cost of each config is in cents per kWh
+
+
+## Response
+Write a concise, professional explanation. If the analysis contains monthly plan recommendations, include a short explanation for each month (use month numbers rather than years). Otherwise provide one overall explanation.
+"""
