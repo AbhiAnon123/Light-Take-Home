@@ -8,19 +8,19 @@
   },
   {
     "name": "NightSaver",
-    "baseFee": 5,
+    "baseFee": 995,
     "hourlyConfigs": [
-      {"startHour": 0, "endHour": 6, "cost": 5},
-      {"startHour": 6, "endHour": 22, "cost": 20},
-      {"startHour": 22, "endHour": 24, "cost": 10}
+      {"startHour": 0, "endHour": 6, "cost": 0},
+      {"startHour": 6, "endHour": 22, "cost": 19},
+      {"startHour": 22, "endHour": 24, "cost": 0}
     ]
   },
   {
     "name": "Tiered",
-    "baseFee": 0,
+    "baseFee": 495,
     "hourlyConfigs": [
-      {"cost": 10},
-      {"billedAfterUsage": 100, "cost": 15}
+      {"cost": 11},
+      {"billedAfterUsage": 500, "cost": 17}
     ]
   }
 ]
