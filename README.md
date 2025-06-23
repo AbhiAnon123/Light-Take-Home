@@ -47,3 +47,13 @@ With switching allowed the output contains per-month information:
 The response also includes a `metrics` object detailing the cost and usage
 breakdown for every plan and month. The `/explain` endpoint relies on these
 values to generate its summary.
+
+
+### `/explain`
+#### Input
+The endpoint expects the following inputs:
+- `usageData`: csv file
+- `userId`: user id that we would use when integrating with email-sending
+
+#### Output Format
+The endpoint returns the email that was sent to the user, in plain text.
