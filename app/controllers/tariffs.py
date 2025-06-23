@@ -5,7 +5,12 @@ import json
 import os
 import openai
 
-from app.managers.tariff_manager import calculate_from_csv
+from app.managers.tariff_manager import (
+    calculate_from_csv,
+    calculate_usage_metrics,
+    average_metrics,
+    recommend_from_metrics,
+)
 from app.configs.tariffs import load_tariffs
 
 router = APIRouter()
@@ -61,6 +66,24 @@ async def recommend(
     allowPlanSwitching: bool = Query(True),
 ):
     result = calculate_from_csv(usageData.file, considerGeneration, allowPlanSwitching)
+    return JSONResponse(result)
+
+
+@router.post("/v2/recommend")
+async def recommend_v2(
+    usageData: UploadFile = File(...),
+    considerGeneration: bool = Query(True),
+    allowPlanSwitching: bool = Query(True),
+):
+    """Recommend tariff plans based on averaged usage patterns."""
+    metrics, _ = calculate_usage_metrics(usageData.file, considerGeneration)
+    avg_metrics = average_metrics(metrics)
+    # order months numerically to keep response predictable
+    if avg_metrics:
+        months_order = sorted(next(iter(avg_metrics.values()))["months"].keys())
+    else:
+        months_order = []
+    result = recommend_from_metrics(avg_metrics, months_order, allowPlanSwitching)
     return JSONResponse(result)
 
 
